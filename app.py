@@ -1,4 +1,4 @@
-import gradio as gr
+import streamlit as st
 from openai import OpenAI
 import os
 
@@ -34,29 +34,31 @@ SYSTEM_PROMPT = """
 - 每次只回复当前问题，不要输出太长。
 """
 
-def chat(message, history):
-    messages = []
-    for h in history:
-        messages.append({"role": "user", "content": h[0]})
-        messages.append({"role": "assistant", "content": h[1]})
-    messages.append({"role": "user", "content": message})
-    
-    try:
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[{"role": "system", "content": SYSTEM_PROMPT}] + messages,
-            max_tokens=500,
-            temperature=0.4
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"出错了：{str(e)}"
+st.title("手机壳客服助手")
+st.caption("有任何问题请直接提问")
 
-demo = gr.ChatInterface(
-    fn=chat,
-    title="手机壳客服助手",
-    description="有任何问题请直接提问",
-    theme=gr.themes.Soft()
-)
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-demo.launch()
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+
+if user_input := st.chat_input("请输入您的问题..."):
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.write(user_input)
+
+    with st.chat_message("assistant"):
+        try:
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "system", "content": SYSTEM_PROMPT}] + st.session_state.messages,
+                max_tokens=500,
+                temperature=0.4
+            )
+            reply = response.choices[0].message.content
+        except Exception as e:
+            reply = f"出错了：{str(e)}"
+        st.write(reply)
+        st.session_state.messages.append({"role": "assistant", "content": reply})
