@@ -59,6 +59,17 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
     .stDeployButton {display: none;}
+    .quick-btn button {
+        background-color: #fff3ee;
+        border: 1px solid #FF6B35;
+        color: #FF6B35;
+        border-radius: 20px;
+        font-size: 13px;
+    }
+    .quick-btn button:hover {
+        background-color: #FF6B35;
+        color: white;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -72,42 +83,56 @@ st.markdown("""
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "pending_input" not in st.session_state:
+    st.session_state.pending_input = None
 
-# 没有对话时显示欢迎语和快捷按钮
+# 显示对话历史
 if len(st.session_state.messages) == 0:
     st.markdown("""
-        <div style='text-align: center; padding: 20px; color: #666;'>
+        <div style='text-align: center; padding: 30px; color: #aaa;'>
             👋 你好！我是店铺客服，请问有什么可以帮您？
         </div>
     """, unsafe_allow_html=True)
+else:
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("📦 什么时候发货"):
-            st.session_state.messages.append({"role": "user", "content": "什么时候发货"})
-            st.rerun()
-    with col2:
-        if st.button("🔄 怎么退换货"):
-            st.session_state.messages.append({"role": "user", "content": "怎么退换货"})
-            st.rerun()
-    with col3:
-        if st.button("🧪 手机壳材质"):
-            st.session_state.messages.append({"role": "user", "content": "手机壳有哪些材质"})
-            st.rerun()
-
-# 显示对话历史
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
-
-# 如果最后一条是用户消息，自动回复
-if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
+# 如果有待处理的快捷问题，自动回复
+if st.session_state.pending_input:
+    user_msg = st.session_state.pending_input
+    st.session_state.pending_input = None
+    st.session_state.messages.append({"role": "user", "content": user_msg})
+    with st.chat_message("user"):
+        st.write(user_msg)
     with st.chat_message("assistant"):
         reply = ask_deepseek(st.session_state.messages)
         st.write(reply)
         st.session_state.messages.append({"role": "assistant", "content": reply})
 
+# 快捷按钮（固定在输入框上方）
+st.markdown("<div class='quick-btn'>", unsafe_allow_html=True)
+col1, col2, col3 = st.columns(3)
+with col1:
+    if st.button("📦 什么时候发货", use_container_width=True):
+        st.session_state.pending_input = "什么时候发货"
+        st.rerun()
+with col2:
+    if st.button("🔄 怎么退换货", use_container_width=True):
+        st.session_state.pending_input = "怎么退换货"
+        st.rerun()
+with col3:
+    if st.button("🧪 手机壳材质", use_container_width=True):
+        st.session_state.pending_input = "手机壳有哪些材质"
+        st.rerun()
+st.markdown("</div>", unsafe_allow_html=True)
+
 # 输入框
 if user_input := st.chat_input("请输入您的问题..."):
     st.session_state.messages.append({"role": "user", "content": user_input})
-    st.rerun()
+    with st.chat_message("user"):
+        st.write(user_input)
+    with st.chat_message("assistant"):
+        reply = ask_deepseek(st.session_state.messages)
+        st.write(reply)
+        st.session_state.messages.append({"role": "assistant", "content": reply})
