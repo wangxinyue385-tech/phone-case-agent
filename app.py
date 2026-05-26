@@ -52,7 +52,7 @@ def ask_deepseek(messages):
     except Exception as e:
         return "出错了，请稍后再试。错误：" + repr(e)
 
-# 隐藏Streamlit默认菜单和底部水印
+# 隐藏默认菜单
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -62,7 +62,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 自定义顶部标题
+# 顶部标题
 st.markdown("""
     <div style='text-align: center; padding: 20px 0 10px 0;'>
         <h1 style='color: #FF6B35; font-size: 28px;'>🛍️ 手机壳专卖店客服</h1>
@@ -73,15 +73,41 @@ st.markdown("""
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# 没有对话时显示欢迎语和快捷按钮
+if len(st.session_state.messages) == 0:
+    st.markdown("""
+        <div style='text-align: center; padding: 20px; color: #666;'>
+            👋 你好！我是店铺客服，请问有什么可以帮您？
+        </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("📦 什么时候发货"):
+            st.session_state.messages.append({"role": "user", "content": "什么时候发货"})
+            st.rerun()
+    with col2:
+        if st.button("🔄 怎么退换货"):
+            st.session_state.messages.append({"role": "user", "content": "怎么退换货"})
+            st.rerun()
+    with col3:
+        if st.button("🧪 手机壳材质"):
+            st.session_state.messages.append({"role": "user", "content": "手机壳有哪些材质"})
+            st.rerun()
+
+# 显示对话历史
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
 
-if user_input := st.chat_input("请输入您的问题..."):
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.write(user_input)
+# 如果最后一条是用户消息，自动回复
+if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
     with st.chat_message("assistant"):
         reply = ask_deepseek(st.session_state.messages)
         st.write(reply)
         st.session_state.messages.append({"role": "assistant", "content": reply})
+
+# 输入框
+if user_input := st.chat_input("请输入您的问题..."):
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    st.rerun()
