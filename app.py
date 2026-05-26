@@ -1,12 +1,10 @@
-# -*- coding: utf-8 -*-
 import streamlit as st
 from openai import OpenAI
 import os
 
 client = OpenAI(
     api_key=os.environ.get("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com",
-    default_headers={"Accept-Charset": "utf-8"}
+    base_url="https://api.deepseek.com"
 )
 
 SYSTEM_PROMPT = (
@@ -60,8 +58,7 @@ if user_input := st.chat_input("请输入您的问题..."):
                 temperature=0.4
             )
             reply = response.choices[0].message.content
-            reply = reply.encode("utf-8").decode("utf-8")
         except Exception as e:
-            reply = "出错了，请稍后再试。"
+            reply = "出错了：" + str(e)
         st.write(reply)
         st.session_state.messages.append({"role": "assistant", "content": reply})
