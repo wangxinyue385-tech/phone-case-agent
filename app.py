@@ -1,11 +1,8 @@
 import streamlit as st
-from openai import OpenAI
+import requests
 import os
 
-client = OpenAI(
-    api_key=os.environ.get("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com"
-)
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 
 SYSTEM_PROMPT = (
     "你是一家国内电商店铺的专业客服，店铺主要卖手机壳。\n"
@@ -34,6 +31,27 @@ SYSTEM_PROMPT = (
     "- 每次只回复当前问题，不要输出太长。"
 )
 
+def ask_deepseek(messages):
+    try:
+        response = requests.post(
+            "https://api.deepseek.com/chat/completions",
+            headers={
+                "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+                "Content-Type": "application/json; charset=utf-8"
+            },
+            json={
+                "model": "deepseek-chat",
+                "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + messages,
+                "max_tokens": 500,
+                "temperature": 0.4
+            },
+            timeout=30
+        )
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
+    except Exception as e:
+        return "出错了，请稍后再试。错误：" + repr(e)
+
 st.title("手机壳客服助手")
 st.caption("有任何问题请直接提问")
 
@@ -48,17 +66,7 @@ if user_input := st.chat_input("请输入您的问题..."):
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.write(user_input)
-
     with st.chat_message("assistant"):
-        try:
-            response = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[{"role": "system", "content": SYSTEM_PROMPT}] + st.session_state.messages,
-                max_tokens=500,
-                temperature=0.4
-            )
-            reply = response.choices[0].message.content
-        except Exception as e:
-            reply = "出错了：" + str(e)
+        reply = ask_deepseek(st.session_state.messages)
         st.write(reply)
         st.session_state.messages.append({"role": "assistant", "content": reply})
