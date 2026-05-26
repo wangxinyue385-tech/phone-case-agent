@@ -1,7 +1,8 @@
-import streamlit as st
+from flask import Flask, request, jsonify, render_template_string
 import requests
 import os
 
+app = Flask(__name__)
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 
 SYSTEM_PROMPT = (
@@ -31,13 +32,136 @@ SYSTEM_PROMPT = (
     "- 每次只回复当前问题，不要输出太长。"
 )
 
-def ask_deepseek(messages):
+HTML = '''
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>手机壳专卖店客服</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f5; display: flex; justify-content: center; align-items: center; height: 100vh; }
+.container { width: 100%; max-width: 480px; height: 100vh; background: white; display: flex; flex-direction: column; }
+.header { background: linear-gradient(135deg, #FF6B35, #ff8c5a); color: white; padding: 20px; text-align: center; }
+.header h1 { font-size: 20px; margin-bottom: 4px; }
+.header p { font-size: 13px; opacity: 0.85; }
+.messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.welcome { text-align: center; color: #aaa; font-size: 14px; margin-top: 20px; }
+.msg { display: flex; gap: 8px; align-items: flex-end; }
+.msg.user { flex-direction: row-reverse; }
+.bubble { max-width: 75%; padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.5; }
+.msg.user .bubble { background: #FF6B35; color: white; border-bottom-right-radius: 4px; }
+.msg.bot .bubble { background: #f0f0f0; color: #333; border-bottom-left-radius: 4px; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.msg.user .avatar { background: #FF6B35; }
+.msg.bot .avatar { background: #e0e0e0; }
+.typing { display: none; }
+.typing .bubble { background: #f0f0f0; color: #999; font-size: 13px; }
+.bottom { border-top: 1px solid #eee; padding: 10px 12px; background: white; }
+.quick-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.quick-btn { background: #fff3ee; border: 1px solid #FF6B35; color: #FF6B35; border-radius: 16px; padding: 5px 12px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.quick-btn:hover { background: #FF6B35; color: white; }
+.input-row { display: flex; gap: 8px; }
+.input-row input { flex: 1; border: 1px solid #ddd; border-radius: 24px; padding: 10px 16px; font-size: 14px; outline: none; }
+.input-row input:focus { border-color: #FF6B35; }
+.input-row button { background: #FF6B35; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; cursor: pointer; flex-shrink: 0; }
+.input-row button:hover { background: #e55a25; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🛍️ 手机壳专卖店</h1>
+    <p>专业客服在线，有问题尽管问～</p>
+  </div>
+  <div class="messages" id="messages">
+    <div class="welcome">👋 你好！我是店铺客服，请问有什么可以帮您？</div>
+  </div>
+  <div class="bottom">
+    <div class="quick-btns">
+      <button class="quick-btn" onclick="sendMsg('什么时候发货')">📦 发货时间</button>
+      <button class="quick-btn" onclick="sendMsg('怎么退换货')">🔄 退换货</button>
+      <button class="quick-btn" onclick="sendMsg('手机壳有哪些材质')">🧪 产品材质</button>
+      <button class="quick-btn" onclick="sendMsg('支持定制吗')">✏️ 定制款</button>
+      <button class="quick-btn" onclick="sendMsg('如何联系人工客服')">📞 人工客服</button>
+      <button class="quick-btn" onclick="sendMsg('有什么优惠活动吗')">🎁 优惠活动</button>
+    </div>
+    <div class="input-row">
+      <input type="text" id="userInput" placeholder="请输入您的问题..." onkeydown="if(event.key==='Enter')sendMsg()"/>
+      <button onclick="sendMsg()">➤</button>
+    </div>
+  </div>
+</div>
+<script>
+let history = [];
+
+async function sendMsg(text) {
+  const input = document.getElementById("userInput");
+  const msg = text || input.value.trim();
+  if (!msg) return;
+  input.value = "";
+
+  appendMsg("user", msg);
+  history.push({role: "user", content: msg});
+
+  const typing = appendTyping();
+
+  const res = await fetch("/chat", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({messages: history})
+  });
+  const data = await res.json();
+  typing.remove();
+
+  const reply = data.reply;
+  appendMsg("bot", reply);
+  history.push({role: "assistant", content: reply});
+}
+
+function appendMsg(role, text) {
+  const box = document.getElementById("messages");
+  const div = document.createElement("div");
+  div.className = "msg " + role;
+  div.innerHTML = `
+    <div class="avatar">${role === "user" ? "👤" : "🤖"}</div>
+    <div class="bubble">${text}</div>
+  `;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  return div;
+}
+
+function appendTyping() {
+  const box = document.getElementById("messages");
+  const div = document.createElement("div");
+  div.className = "msg bot typing";
+  div.style.display = "flex";
+  div.innerHTML = `<div class="avatar">🤖</div><div class="bubble">正在输入...</div>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  return div;
+}
+</script>
+</body>
+</html>
+'''
+
+@app.route("/")
+def index():
+    return render_template_string(HTML)
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    data = request.json
+    messages = data.get("messages", [])
     try:
         response = requests.post(
             "https://api.deepseek.com/chat/completions",
             headers={
                 "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-                "Content-Type": "application/json; charset=utf-8"
+                "Content-Type": "application/json"
             },
             json={
                 "model": "deepseek-chat",
@@ -47,92 +171,10 @@ def ask_deepseek(messages):
             },
             timeout=30
         )
-        data = response.json()
-        return data["choices"][0]["message"]["content"]
+        reply = response.json()["choices"][0]["message"]["content"]
     except Exception as e:
-        return "出错了，请稍后再试。错误：" + repr(e)
+        reply = "出错了，请稍后再试。"
+    return jsonify({"reply": reply})
 
-# 隐藏默认菜单
-st.markdown("""
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .stDeployButton {display: none;}
-    .quick-btn button {
-        background-color: #fff3ee;
-        border: 1px solid #FF6B35;
-        color: #FF6B35;
-        border-radius: 20px;
-        font-size: 13px;
-    }
-    .quick-btn button:hover {
-        background-color: #FF6B35;
-        color: white;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# 顶部标题
-st.markdown("""
-    <div style='text-align: center; padding: 20px 0 10px 0;'>
-        <h1 style='color: #FF6B35; font-size: 28px;'>🛍️ 手机壳专卖店客服</h1>
-        <p style='color: #888; font-size: 14px;'>专业客服在线，有问题尽管问～</p>
-    </div>
-""", unsafe_allow_html=True)
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "pending_input" not in st.session_state:
-    st.session_state.pending_input = None
-
-# 显示对话历史
-if len(st.session_state.messages) == 0:
-    st.markdown("""
-        <div style='text-align: center; padding: 30px; color: #aaa;'>
-            👋 你好！我是店铺客服，请问有什么可以帮您？
-        </div>
-    """, unsafe_allow_html=True)
-else:
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
-
-# 如果有待处理的快捷问题，自动回复
-if st.session_state.pending_input:
-    user_msg = st.session_state.pending_input
-    st.session_state.pending_input = None
-    st.session_state.messages.append({"role": "user", "content": user_msg})
-    with st.chat_message("user"):
-        st.write(user_msg)
-    with st.chat_message("assistant"):
-        reply = ask_deepseek(st.session_state.messages)
-        st.write(reply)
-        st.session_state.messages.append({"role": "assistant", "content": reply})
-
-# 快捷按钮（固定在输入框上方）
-st.markdown("<div class='quick-btn'>", unsafe_allow_html=True)
-col1, col2, col3 = st.columns(3)
-with col1:
-    if st.button("📦 什么时候发货", use_container_width=True):
-        st.session_state.pending_input = "什么时候发货"
-        st.rerun()
-with col2:
-    if st.button("🔄 怎么退换货", use_container_width=True):
-        st.session_state.pending_input = "怎么退换货"
-        st.rerun()
-with col3:
-    if st.button("🧪 手机壳材质", use_container_width=True):
-        st.session_state.pending_input = "手机壳有哪些材质"
-        st.rerun()
-st.markdown("</div>", unsafe_allow_html=True)
-
-# 输入框
-if user_input := st.chat_input("请输入您的问题..."):
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.write(user_input)
-    with st.chat_message("assistant"):
-        reply = ask_deepseek(st.session_state.messages)
-        st.write(reply)
-        st.session_state.messages.append({"role": "assistant", "content": reply})
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
