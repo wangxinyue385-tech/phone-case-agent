@@ -52,8 +52,23 @@ def ask_deepseek(messages):
     except Exception as e:
         return "出错了，请稍后再试。错误：" + repr(e)
 
-st.title("手机壳客服助手")
-st.caption("有任何问题请直接提问")
+# 隐藏Streamlit默认菜单和底部水印
+st.markdown("""
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stDeployButton {display: none;}
+    </style>
+""", unsafe_allow_html=True)
+
+# 自定义顶部标题
+st.markdown("""
+    <div style='text-align: center; padding: 20px 0 10px 0;'>
+        <h1 style='color: #FF6B35; font-size: 28px;'>🛍️ 手机壳专卖店客服</h1>
+        <p style='color: #888; font-size: 14px;'>专业客服在线，有问题尽管问～</p>
+    </div>
+""", unsafe_allow_html=True)
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
